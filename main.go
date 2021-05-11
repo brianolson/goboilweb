@@ -2,11 +2,16 @@ package main
 
 import (
 	"database/sql"
+	"embed"
 	"flag"
 	"html/template"
 	"log"
 	"net/http"
+	"time"
 )
+
+//go:embed templates
+var tfs embed.FS
 
 var templates *template.Template
 var db *sql.DB
@@ -25,7 +30,7 @@ func dbConnect() (*sql.DB, error) {
 }
 
 func loadTemplates() error {
-	nt, err := template.ParseGlob("templates/*.html")
+	nt, err := template.ParseFS(tfs, "templates/*.html")
 	if err != nil {
 		log.Print("error listing template html ", err)
 		return err
@@ -56,7 +61,11 @@ func baseHandler(out http.ResponseWriter, request *http.Request) {
 		http.Error(out, "template error base.html", 500)
 		return
 	}
-	context := struct{}{}
+	context := struct {
+		DateStr string
+	}{
+		time.Now().Format(time.RFC3339Nano),
+	}
 	out.Header()["Content-Type"] = []string{"text/html"}
 	err = t.Execute(out, context)
 	if err != nil {
