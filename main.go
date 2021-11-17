@@ -13,6 +13,9 @@ import (
 //go:embed templates
 var tfs embed.FS
 
+//go:embed static
+var sfs embed.FS
+
 var templates *template.Template
 var db *sql.DB
 
@@ -74,7 +77,14 @@ func baseHandler(out http.ResponseWriter, request *http.Request) {
 }
 
 func faviconHandler(out http.ResponseWriter, request *http.Request) {
-	http.ServeFile(out, request, "static/favicon.ico")
+	faviconBytes, err := sfs.ReadFile("static/favicon.ico")
+	if err != nil {
+		http.NotFound(out, request)
+		return
+	}
+	out.Header()["Content-Type"] = []string{"image/vnd.microsoft.icon"}
+	out.WriteHeader(http.StatusOK)
+	out.Write(faviconBytes)
 }
 
 func main() {
