@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -87,6 +88,25 @@ func faviconHandler(out http.ResponseWriter, request *http.Request) {
 	out.Write(faviconBytes)
 }
 
+type StaticHandler struct {
+	stripPrefix string
+	newPrefix   string
+	fsHandler   http.Handler
+}
+
+func (sh *StaticHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if strings.HasPrefix(req.URL.Path, sh.stripPrefix) && ((req.URL.RawPath == "") || strings.HasPrefix(req.URL.RawPath, sh.stripPrefix)) {
+		req.URL.Path = strings.Replace(req.URL.Path, sh.stripPrefix, sh.newPrefix, 1)
+		if req.URL.RawPath != "" {
+			req.URL.RawPath = strings.Replace(req.URL.RawPath, sh.stripPrefix, sh.newPrefix, 1)
+		}
+		sh.fsHandler.ServeHTTP(rw, req)
+	} else {
+		log.Printf("Path=%#v RawPath=%#v, prefix=%#v", req.URL.Path, req.URL.RawPath, sh.stripPrefix)
+		http.Error(rw, "nope", http.StatusNotFound)
+	}
+}
+
 func main() {
 	var err error
 	serveAddr := flag.String("addr", ":8777", "Server Addr")
@@ -102,7 +122,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/favicon.ico", faviconHandler)
 	// In production static file serving is probably handed elsewhere, but in dev, here it is
-	mux.Handle("/s/", http.StripPrefix("/s/", http.FileServer(http.Dir("static"))))
+	sh := StaticHandler{stripPrefix: "/s/", newPrefix: "/static/", fsHandler: http.FileServer(http.FS(sfs))}
+	mux.Handle("/s/", &sh)
 	mux.HandleFunc("/", baseHandler)
 
 	server := &http.Server{
